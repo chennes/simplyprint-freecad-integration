@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "freecad.simplyprint"
+version = "1.0.0"
+description = "Send FreeCAD models, meshes and assemblies to the SimplyPrint cloud for slicing and 3D printing"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { file = "LICENSE" }
+authors = [{ name = "SimplyPrint", email = "contact@simplyprint.io" }]
+keywords = ["FreeCAD", "3D printing", "SimplyPrint", "slicing"]
+
+[project.urls]
+Homepage = "https://simplyprint.io"
+Repository = "https://github.com/SimplyPrint/freecad-integration"
+
+# Namespace package: ship freecad.simplyprint (the implicit `freecad` namespace
+# is provided by FreeCAD itself, so it is intentionally not packaged here).
+[tool.setuptools.packages.find]
+include = ["freecad*"]
+
+[tool.setuptools.package-data]
+"freecad.simplyprint" = ["resources/icons/*.svg", ".env.example"]

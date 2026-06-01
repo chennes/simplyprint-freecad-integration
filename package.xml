@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>SimplyPrint</name>
+  <description>Send your FreeCAD models, meshes and assemblies directly to the SimplyPrint cloud for slicing, storage and 3D printing. Adapts to the active workbench, lets you choose the mesh quality when exporting parametric solids, and shows the real size of what you're about to send.</description>
+  <version>1.0.0</version>
+  <date>2026-06-01</date>
+  <maintainer email="contact@simplyprint.io">SimplyPrint</maintainer>
+  <author email="contact@simplyprint.io">SimplyPrint</author>
+  <license file="LICENSE">MIT</license>
+  <url type="repository" branch="main">https://github.com/SimplyPrint/freecad-integration</url>
+  <url type="bugtracker">https://github.com/SimplyPrint/freecad-integration/issues</url>
+  <url type="readme">https://github.com/SimplyPrint/freecad-integration/blob/main/README.md</url>
+  <icon>freecad/simplyprint/resources/icons/simplyprint.svg</icon>
+  <pythonmin>3.8</pythonmin>
+
+  <content>
+    <workbench>
+      <name>SimplyPrint</name>
+      <subdirectory>./</subdirectory>
+      <icon>freecad/simplyprint/resources/icons/simplyprint.svg</icon>
+      <classname>SimplyPrintWorkbench</classname>
+    </workbench>
+  </content>
+</package>

@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//mnt/Vault/SP/integs/blender-integration/**)",
+      "Read(//mnt/Vault/SP/integs/blender-integration/simplyprint/**)",
+      "Bash(flatpak run *)",
+      "Bash(grep -vE \"^\\\\s*$\")",
+      "Bash(echo \"exit=$?\")",
+      "Read(//tmp/**)",
+      "Bash(python3 tests/test_core.py)",
+      "Bash(python3 build.py --install)",
+      "Bash(echo \"process exit=$?\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ]
+  }
+}
