@@ -1,0 +1,47 @@
+name: Release
+
+# Build the addon zip and publish a GitHub release whenever a vX.Y.Z tag is
+# pushed (scripts/bump_version.py --tag creates such a tag). Also runnable
+# manually from the Actions tab against any ref.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build addon zip
+        run: python build.py
+
+      - name: Check tag matches package.xml version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          pkg_version="$(python -c "import build; print(build.read_version())")"
+          tag_version="${GITHUB_REF_NAME#v}"
+          echo "package.xml=$pkg_version  tag=$tag_version"
+          if [ "$pkg_version" != "$tag_version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.xml version $pkg_version"
+            exit 1
+          fi
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: SimplyPrint ${{ github.ref_name }}
+          generate_release_notes: true
+          files: dist/SimplyPrint.zip
