@@ -12,7 +12,7 @@ import tempfile
 
 from PySide import QtCore, QtGui, QtWidgets
 
-from . import ICONPATH, VERSION, actions, api, config, context as ctx_mod, export, state
+from . import ICONPATH, VERSION, actions, api, context as ctx_mod, export, state
 
 _PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/SimplyPrint"
 
@@ -22,13 +22,7 @@ _QUALITY_LABELS = [
     ("High (fine, slow)", "high"),
     ("Custom…", "custom"),
 ]
-_FORMATS = ["3MF", "STL", "OBJ"]
-
-# Known SimplyPrint backends offered in the Server selector (label, domain).
-_SERVERS = [
-    ("Production", "simplyprint.io"),
-    ("Test", "test.simplyprint.io"),
-]
+_FORMATS = ["STL", "3MF", "OBJ"]
 
 # Module-level handle so InitGui / commands can find the single panel instance.
 _panel = None
@@ -100,36 +94,37 @@ class SimplyPrintPanel(QtWidgets.QDockWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(8)
 
-        # -- Branded header (SimplyPrint logo + wordmark) -------------------
-        header = QtWidgets.QHBoxLayout()
-        header.setSpacing(8)
+        # -- Header + account, merged into one box --------------------------
+        #   [logo]  SimplyPrint v1.0.0                         [Log In/Out]
+        #           <signed-in status>
+        head = QtWidgets.QFrame()
+        head.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        head_l = QtWidgets.QHBoxLayout(head)
+        head_l.setSpacing(8)
+
         logo = QtWidgets.QLabel()
         icon = QtGui.QIcon(os.path.join(ICONPATH, "simplyprint.svg"))
         logo.setPixmap(icon.pixmap(QtCore.QSize(36, 36)))
-        header.addWidget(logo)
-        wordmark = QtWidgets.QLabel("<b>SimplyPrint</b><br><small>v%s</small>" % VERSION)
-        header.addWidget(wordmark)
-        header.addStretch(1)
-        layout.addLayout(header)
+        head_l.addWidget(logo)
 
-        # -- Account --------------------------------------------------------
-        acct = QtWidgets.QGroupBox("Account")
-        acct_l = QtWidgets.QVBoxLayout(acct)
+        text_col = QtWidgets.QVBoxLayout()
+        text_col.setSpacing(0)
+        text_col.addWidget(QtWidgets.QLabel("<b>SimplyPrint</b> <small>v%s</small>" % VERSION))
         self._account_label = QtWidgets.QLabel("Not signed in")
         self._account_label.setWordWrap(True)
-        acct_l.addWidget(self._account_label)
-        btn_row = QtWidgets.QHBoxLayout()
+        text_col.addWidget(self._account_label)
+        head_l.addLayout(text_col)
+
+        head_l.addStretch(1)
+
+        # Account action, far right (vertically centred).
         self._login_btn = QtWidgets.QPushButton("Log In")
         self._login_btn.clicked.connect(self._on_login)
         self._logout_btn = QtWidgets.QPushButton("Log Out")
         self._logout_btn.clicked.connect(self._on_logout)
-        self._open_btn = QtWidgets.QPushButton("Open SimplyPrint")
-        self._open_btn.clicked.connect(self._on_open_panel)
-        btn_row.addWidget(self._login_btn)
-        btn_row.addWidget(self._logout_btn)
-        btn_row.addWidget(self._open_btn)
-        acct_l.addLayout(btn_row)
-        layout.addWidget(acct)
+        head_l.addWidget(self._login_btn, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        head_l.addWidget(self._logout_btn, 0, QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        layout.addWidget(head)
 
         # -- Context message (unsupported / no document) --------------------
         self._context_msg = QtWidgets.QLabel("")
@@ -231,26 +226,6 @@ class SimplyPrintPanel(QtWidgets.QDockWidget):
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
 
-        # -- Server (which SimplyPrint backend to talk to) ------------------
-        server_group = QtWidgets.QGroupBox("Server")
-        sg = QtWidgets.QFormLayout(server_group)
-        self._server_combo = QtWidgets.QComboBox()
-        for label, dom in _SERVERS:
-            self._server_combo.addItem(f"{label} ({dom})", dom)
-        self._server_combo.addItem("Custom…", "")
-        self._server_combo.setToolTip(
-            "Which SimplyPrint backend to use. Changing this signs you out, since "
-            "logins are per-server."
-        )
-        self._server_combo.currentIndexChanged.connect(self._on_server_changed)
-        sg.addRow("Server", self._server_combo)
-        self._server_custom = QtWidgets.QLineEdit()
-        self._server_custom.setPlaceholderText("e.g. test.simplyprint.io")
-        self._server_custom.editingFinished.connect(self._on_server_changed)
-        self._server_custom_label = QtWidgets.QLabel("Domain")
-        sg.addRow(self._server_custom_label, self._server_custom)
-        layout.addWidget(server_group)
-
         layout.addStretch(1)
 
     def _connect_signals(self):
@@ -263,7 +238,7 @@ class SimplyPrintPanel(QtWidgets.QDockWidget):
     # ------------------------------------------------------------ prefs
     def _load_prefs(self):
         p = _params()
-        fmt = p.GetString("Format", "3MF")
+        fmt = p.GetString("Format", "STL")
         idx = self._format_combo.findText(fmt)
         self._format_combo.setCurrentIndex(idx if idx >= 0 else 0)
 
@@ -275,11 +250,6 @@ class SimplyPrintPanel(QtWidgets.QDockWidget):
         self._angular_spin.setValue(p.GetFloat("CustomAngular", 20.0))
         self._per_object.setChecked(p.GetBool("PerObject", False))
         self._update_custom_rows()
-
-        # Server: apply the saved domain to config and reflect it in the combo.
-        domain = p.GetString("BaseDomain", config.base_domain())
-        config.set_base_domain(domain)
-        self._apply_server_to_combo(domain)
 
     def _save_prefs(self):
         p = _params()
@@ -300,43 +270,6 @@ class SimplyPrintPanel(QtWidgets.QDockWidget):
         custom = self._quality_key() == "custom"
         for w in (self._linear_spin, self._angular_spin, self._linear_row_label, self._angular_row_label):
             w.setVisible(custom)
-
-    # ------------------------------------------------------------ server
-    def _apply_server_to_combo(self, domain: str):
-        """Reflect *domain* in the combo (known server, or Custom + line edit)."""
-        self._server_combo.blockSignals(True)
-        idx = self._server_combo.findData(domain)
-        custom = idx < 0
-        if custom:
-            idx = self._server_combo.findData("")  # the "Custom…" entry
-            self._server_custom.setText(domain)
-        self._server_combo.setCurrentIndex(idx)
-        self._server_custom.setVisible(custom)
-        self._server_custom_label.setVisible(custom)
-        self._server_combo.blockSignals(False)
-
-    def _on_server_changed(self, *_):
-        data = self._server_combo.currentData()
-        custom = data == ""
-        self._server_custom.setVisible(custom)
-        self._server_custom_label.setVisible(custom)
-
-        domain = self._server_custom.text().strip() if custom else data
-        if not domain or domain == config.base_domain():
-            return
-
-        # Logins are per-server, so switching invalidates the current session.
-        had_session = state.is_logged_in() or state.has_tokens()
-        config.set_base_domain(domain)
-        _params().SetString("BaseDomain", domain)
-        if had_session:
-            actions.logout()
-
-        msg = "Server set to %s" % domain
-        if had_session:
-            msg += " — please log in again"
-        self._set_status(msg)
-        self.refresh()
 
     # --------------------------------------------------------- refresh
     def request_refresh(self):
@@ -506,10 +439,12 @@ class SimplyPrintPanel(QtWidgets.QDockWidget):
         try:
             info = export.measure(objs)
             x, y, z = info["bbox"]
-            text = f"Bounding box: {x:.1f} × {y:.1f} × {z:.1f} mm"
+            lines = []
+            if max(x, y, z) > 0:
+                lines.append(f"Bounding box: {x:.1f} × {y:.1f} × {z:.1f} mm")
             if info["has_volume"]:
-                text += f"\nVolume: {info['volume_cm3']:.2f} cm³"
-            self._preview_label.setText(text)
+                lines.append(f"Volume: {info['volume_cm3']:.2f} cm³")
+            self._preview_label.setText("\n".join(lines) if lines else "–")
         except Exception as exc:
             self._preview_label.setText(f"(could not measure: {exc})")
 

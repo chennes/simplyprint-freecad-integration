@@ -83,6 +83,15 @@ names = sorted(o.name for o in ctx2.objects)
 _emit(f"   after cut: objects={names}")
 check(names == ["Cut"], "boolean lists only the Cut result, not operands")
 
+# A PartDesign Body auto-creates the XY/XZ/YZ origin planes + axes; none of those
+# datums must be listed as printable (they used to sneak in as "solids").
+body = doc.addObject("PartDesign::Body", "Body")
+doc.recompute()
+ctx_b = context.current_context()
+datums = [o.name for o in ctx_b.objects if "Plane" in o.name or "Axis" in o.name or o.name == "Origin"]
+_emit(f"   with body: objects={[o.name for o in ctx_b.objects]}")
+check(not datums, "origin planes/axes are not listed as printable")
+
 # Empty document -> unsupported / none.
 doc2 = FreeCAD.newDocument("empty")
 FreeCAD.setActiveDocument("empty")

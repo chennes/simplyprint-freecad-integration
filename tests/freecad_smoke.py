@@ -65,6 +65,18 @@ def main():
     print(f"{'PASS' if ok else 'FAIL'} measure: bbox=({x:.1f},{y:.1f},{z:.1f}) vol={info['volume_cm3']:.2f} cm3")
     failures += 0 if ok else 1
 
+    # 3b. an invalid/empty shape must not blow up the bounding box (the 2e+100 bug).
+    import Part
+
+    bad = doc.addObject("Part::Feature", "Bad")
+    bad.Shape = Part.Shape()
+    doc.recompute()
+    mixed = export.measure([cyl, bad])
+    bx, by, bz = mixed["bbox"]
+    ok = max(bx, by, bz) < 1e6 and abs(bx - 20) < 0.5
+    print(f"{'PASS' if ok else 'FAIL'} invalid-shape ignored: bbox=({bx:.1f},{by:.1f},{bz:.1f})")
+    failures += 0 if ok else 1
+
     # 4. per-object writes one file each.
     box = doc.addObject("Part::Box", "Box")
     doc.recompute()

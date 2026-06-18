@@ -4,3 +4,4 @@ dist/
 .env
 freecad/simplyprint/.env
 tests/_gui_result.txt
+*.bak

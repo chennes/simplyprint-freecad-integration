@@ -22,7 +22,7 @@ addon makes the most of that:
   - **Sketcher / Draft / TechDraw / …** — a hint to switch to a printable context.
 - **Multi-object / per-object.** Send the whole document, just the objects you
   select, or one file per object.
-- **Formats:** 3MF (default — preserves mm units and multiple objects), STL, OBJ.
+- **Formats:** STL (default), 3MF (preserves mm units and multiple objects), OBJ.
 
 It shares the secure, browser-based OAuth login and chunked-upload core with the
 SimplyPrint Blender, Cura, Fusion 360 and Onshape integrations.
@@ -99,20 +99,14 @@ one as freecad.gears, freecad.curves and the official Workbench Starterkit), so
 
 ### Switching backend (e.g. test.simplyprint.io)
 
-The **Server** selector at the bottom of the panel switches which SimplyPrint
-backend the integration talks to — **Production** (`simplyprint.io`), **Test**
-(`test.simplyprint.io`), or a **Custom** domain. The chosen domain drives every
-URL (API → `https://<domain>/api`, OAuth, the import redirect…). Changing it
-signs you out, since logins are per-server.
+The backend domain drives every URL (API → `https://<domain>/api`, OAuth, the
+import redirect…), and defaults to `simplyprint.io`. To point at another
+environment, copy `freecad/simplyprint/.env.example` → `freecad/simplyprint/.env`
+(or `~/.simplyprint/.env`) and set `SP_BASE_DOMAIN` (e.g. `test.simplyprint.io`),
+`SP_CLIENT_ID`, or `SP_CALLBACK_PORT`.
 
-The choice is remembered (FreeCAD preference `BaseDomain`). For headless/CI or
-to pin a default, you can still use the `.env` / environment cascade — copy
-`freecad/simplyprint/.env.example` → `freecad/simplyprint/.env` (or
-`~/.simplyprint/.env`) and set `SP_BASE_DOMAIN`, `SP_CLIENT_ID`, or
-`SP_CALLBACK_PORT`.
-
-Resolution order for each setting (first wins): **process env var → in-app
-Server selection → addon `.env` → `~/.simplyprint/.env` → built-in default.**
+Resolution order for each setting (first wins): **process env var → addon `.env`
+→ `~/.simplyprint/.env` → built-in default.**
 
 ## Removing your data
 

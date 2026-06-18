@@ -73,14 +73,46 @@ class Context:
         return "|".join(parts)
 
 
+# Object types that are never printable even though they may expose a Shape:
+# origin datums (planes/axes/points), sketches, containers, 2D/annotation docs.
+# Origin planes are App::Plane with a single face – without this they'd show up
+# as "solids" and their huge datum bounding box produced the 2e+100 size.
+_BLOCKED_TYPES = {
+    "App::Origin", "App::Plane", "App::Line", "App::Point",
+    "App::Part", "App::DocumentObjectGroup", "App::LinkGroup",
+    "App::Placement", "App::OriginGroupExtension",
+}
+_BLOCKED_PREFIXES = (
+    "Sketcher::", "TechDraw::", "Drawing::", "Spreadsheet::", "Part::Datum",
+)
+
+
+def _is_blocked_type(obj) -> bool:
+    type_id = getattr(obj, "TypeId", "")
+    if type_id in _BLOCKED_TYPES:
+        return True
+    if type_id.startswith(_BLOCKED_PREFIXES):
+        return True
+    # PartDesign internal features (Pad, Pocket, datums…) – the Body carries the
+    # final Shape, so only the Body itself is exportable.
+    if type_id.startswith("PartDesign::") and type_id != "PartDesign::Body":
+        return True
+    return False
+
+
 def _is_solid_candidate(obj) -> bool:
+    """A B-rep object is printable only if it actually encloses a solid.
+
+    Requiring solids (not just faces) excludes datum planes, sketches and stray
+    surfaces – you can't 3D print an open face anyway.
+    """
     shape = getattr(obj, "Shape", None)
     if shape is None:
         return False
     try:
         if shape.isNull():
             return False
-        return len(shape.Solids) > 0 or len(shape.Faces) > 0
+        return len(shape.Solids) > 0
     except Exception:
         return False
 
@@ -142,8 +174,7 @@ def current_context() -> Context:
     # features – the Body carries the final Shape).
     candidate_names = set()
     for obj in all_objects:
-        type_id = getattr(obj, "TypeId", "")
-        if type_id.startswith("PartDesign::") and type_id != "PartDesign::Body":
+        if _is_blocked_type(obj):
             continue
         if _is_solid_candidate(obj) or _is_mesh_candidate(obj):
             candidate_names.add(obj.Name)

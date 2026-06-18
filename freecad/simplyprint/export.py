@@ -17,7 +17,7 @@ covers STL, 3MF and OBJ.
 
 import os
 import re
-from math import radians
+from math import inf, isfinite, radians
 from typing import List, Sequence, Tuple
 
 # fmt -> file extension
@@ -56,46 +56,76 @@ def _live(obj):
     return getattr(obj, "obj", obj)
 
 
+# Coordinates beyond this (mm) are treated as a bad/uninitialised bounding box.
+# FreeCAD's "invalid" BoundBox uses sentinels like ±1e100 / ±DBL_MAX; a real
+# printable part is never anywhere near 100 km.
+_MAX_COORD = 1e8
+
+
+def _usable_bbox(b):
+    """Return *b* if it is a valid, finite bounding box, else None.
+
+    FreeCAD returns an invalid BoundBox (isValid() == False, coords at ±1e308 /
+    ±1e100) for empty/null shapes; unioning those produces the 2e+100 garbage we
+    must not display.
+    """
+    if b is None:
+        return None
+    try:
+        if hasattr(b, "isValid") and not b.isValid():
+            return None
+        coords = [b.XMin, b.XMax, b.YMin, b.YMax, b.ZMin, b.ZMax]
+    except Exception:
+        return None
+    if not all(isfinite(c) for c in coords):
+        return None
+    if any(abs(c) > _MAX_COORD for c in coords):
+        return None
+    return b
+
+
 def measure(objects: Sequence) -> dict:
     """Return ``{bbox: (x, y, z) mm, volume_cm3, has_volume}`` for *objects*.
 
-    Bounding box always available; volume only for objects with a solid Shape.
+    Only valid/finite bounding boxes contribute; volume is summed over objects
+    with a solid Shape.
     """
     import FreeCAD
 
-    bbox = None
+    lo = [inf, inf, inf]
+    hi = [-inf, -inf, -inf]
+    have_box = False
     volume_mm3 = 0.0
     has_volume = False
 
     for o in objects:
         live = _live(o)
+        b = None
+
         shape = getattr(live, "Shape", None)
         if shape is not None and not shape.isNull():
-            try:
-                b = shape.BoundBox
-                bbox = b if bbox is None else bbox.united(b)
-            except Exception:
-                pass
+            b = _usable_bbox(getattr(shape, "BoundBox", None))
             try:
                 if shape.Solids:
                     volume_mm3 += shape.Volume
                     has_volume = True
             except Exception:
                 pass
-            continue
+        else:
+            mesh = getattr(live, "Mesh", None)
+            if mesh is not None:
+                b = _usable_bbox(getattr(mesh, "BoundBox", None))
 
-        mesh = getattr(live, "Mesh", None)
-        if mesh is not None:
-            try:
-                b = mesh.BoundBox
-                bbox = b if bbox is None else bbox.united(b)
-            except Exception:
-                pass
+        if b is not None:
+            have_box = True
+            lo[0], hi[0] = min(lo[0], b.XMin), max(hi[0], b.XMax)
+            lo[1], hi[1] = min(lo[1], b.YMin), max(hi[1], b.YMax)
+            lo[2], hi[2] = min(lo[2], b.ZMin), max(hi[2], b.ZMax)
 
-    if bbox is None:
-        dims = (0.0, 0.0, 0.0)
+    if have_box:
+        dims = (hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2])
     else:
-        dims = (bbox.XLength, bbox.YLength, bbox.ZLength)
+        dims = (0.0, 0.0, 0.0)
 
     return {
         "bbox": dims,
@@ -148,6 +178,11 @@ def _write(pairs: List[Tuple[object, object]], path: str) -> None:
     import FreeCAD
     import Mesh
 
+    # Creating a document makes it the active one; closing it would otherwise
+    # leave ActiveDocument = None, which makes the panel think no model is open
+    # and collapse to the "open a model" state. Remember and restore it.
+    previous = FreeCAD.ActiveDocument
+
     tmp = _new_hidden_document()
     try:
         features = []
@@ -159,6 +194,11 @@ def _write(pairs: List[Tuple[object, object]], path: str) -> None:
         Mesh.export(features, path)
     finally:
         FreeCAD.closeDocument(tmp.Name)
+        if previous is not None:
+            try:
+                FreeCAD.setActiveDocument(previous.Name)
+            except Exception:
+                pass
 
 
 def export_objects(
